@@ -6,6 +6,9 @@ module Aws::Credentials
   # https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRoleWithWebIdentity.html
   class AssumeRoleWithWebIdentityProvider
     include Provider
+    include CredentialsWithExpiration
+
+    @last_credentials : Credentials? = nil
 
     def initialize(
       @role_session_name : String,
@@ -14,6 +17,7 @@ module Aws::Credentials
       sts_client : STSClient? = nil,
       @duration : Time::Span? = nil,
       @policy : JSON::Any? = nil,
+      @current_time_provider : Proc(Time) = ->{ Time.utc },
       logger : Log = ::Log.for("AWS.Credentials")
     )
       @logger = logger.for("AssumeRoleWithWebIdentityProvider")
@@ -22,6 +26,19 @@ module Aws::Credentials
     end
 
     def credentials : Credentials
+      credentials = @last_credentials
+      if !credentials
+        @logger.debug { "No credentials are available, resolving new credentials" }
+      elsif expired?(credentials, @current_time_provider)
+        @logger.debug { "The credentials have expired, resolving new credentials" }
+      else
+        return credentials
+      end
+
+      @last_credentials = resolve_credentials
+    end
+
+    private def resolve_credentials
       role_arn = @role_arn ||
                  ENV["AWS_ROLE_ARN"] ||
                  raise MissingCredentials.new "Failed to locate Role ARN"
