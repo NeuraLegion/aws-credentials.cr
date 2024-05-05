@@ -6,7 +6,6 @@ module Aws::Credentials
   # https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRoleWithWebIdentity.html
   class AssumeRoleWithWebIdentityProvider
     include Provider
-    include CredentialsWithExpiration
 
     @last_credentials : Credentials? = nil
 
@@ -17,7 +16,6 @@ module Aws::Credentials
       sts_client : STSClient? = nil,
       @duration : Time::Span? = nil,
       @policy : JSON::Any? = nil,
-      @current_time_provider : Proc(Time) = ->{ Time.utc },
       logger : Log = ::Log.for("AWS.Credentials")
     )
       @logger = logger.for("AssumeRoleWithWebIdentityProvider")
@@ -26,19 +24,11 @@ module Aws::Credentials
     end
 
     def credentials : Credentials
-      credentials = @last_credentials
-      if !credentials
-        @logger.debug { "No credentials are available, resolving new credentials" }
-      elsif expired?(credentials, @current_time_provider)
-        @logger.debug { "The credentials have expired, resolving new credentials" }
-      else
-        return credentials
-      end
-
-      @last_credentials = resolve_credentials
+      refresh unless @last_credentials
+      @last_credentials || raise MissingCredentials.new("Unable to retrieve credentials")
     end
 
-    private def resolve_credentials
+    def refresh : Nil
       role_arn = @role_arn ||
                  ENV["AWS_ROLE_ARN"] ||
                  raise MissingCredentials.new "Failed to locate Role ARN"
@@ -46,7 +36,7 @@ module Aws::Credentials
                            File.read(ENV["AWS_WEB_IDENTITY_TOKEN_FILE"]) ||
                            raise MissingCredentials.new "Failed to locate Web Identity Token"
 
-      @sts_client.assume_role_with_web_identity(
+      @last_credentials = @sts_client.assume_role_with_web_identity(
         role_arn,
         @role_session_name,
         web_identity_token,

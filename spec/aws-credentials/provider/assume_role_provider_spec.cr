@@ -88,7 +88,7 @@ module Aws::Credentials
       end
     end
 
-    it "refreshes credentials automatically" do
+    it "can refresh credentials" do
       server, relative_uri = Scenarios.scenario_sts(1.second)
       begin
         url = "http://127.0.0.1:#{server[:port]}#{relative_uri}"
@@ -118,6 +118,8 @@ module Aws::Credentials
         end
 
         sleep 1.2.seconds
+
+        provider.refresh
         refreshed = provider.credentials
         refreshed.expiration.should_not be_nil
         refreshed.expiration.try do |refreshed_expiration|

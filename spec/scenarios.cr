@@ -58,7 +58,8 @@ module Scenarios
     server = ServerStub.server ->(context : HTTP::Server::Context) {
       expiration = (Time.utc + ttl).to_rfc3339
       if context.request.path == uri
-        action = context.request.form_params.try(&.["Action"]?) ||
+        body_params = context.request.body.try { |body| URI::Params.parse(body.gets_to_end) rescue nil }
+        action = body_params.try(&.["Action"]?) ||
                  context.request.query_params["Action"]?
         case action
         when "AssumeRole"
@@ -89,7 +90,8 @@ module Scenarios
     STRING
     server = ServerStub.server ->(context : HTTP::Server::Context) {
       if context.request.path == uri
-        action = context.request.form_params.try(&.["Action"]?) ||
+        body_params = context.request.body.try { |body| URI::Params.parse(body.gets_to_end) rescue nil }
+        action = body_params.try(&.["Action"]?) ||
                  context.request.query_params["Action"]?
         case action
         when "AssumeRole"
