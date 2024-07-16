@@ -74,11 +74,7 @@ module Aws::Credentials
     end
 
     def refresh : Nil
-      @providers.each do |provider_|
-        provider_.refresh
-      rescue
-        # Nothing to do
-      end
+      @providers.each(&.refresh) rescue nil
       @resolved = nil
     end
   end
